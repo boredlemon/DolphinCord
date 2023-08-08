@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { channels } from "@/utils/ably/client";
 import { useChannels } from "ably-builder/hooks";
 import { RouterUtils, trpc } from "@/utils/trpc";
@@ -11,8 +12,8 @@ export function GroupEventManager() {
     const { status, data } = useSession();
     const utils = trpc.useContext();
 
-    const onEvent = channels.group.useCallback(
-        ({ name, data: message }) => {
+    const onEvent = useCallback(
+        ({ name, data: message }: { name: string, data: any }) => {
             if (name === "group_deleted") {
                 return deleteGroup(utils, message.id);
             }

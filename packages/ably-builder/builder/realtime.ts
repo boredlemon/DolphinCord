@@ -42,15 +42,12 @@ function buildRealtimeChannel(
                         events: [event_name],
                         ...params,
                     },
-                    useCallback(
-                        (raw) => {
-                            return callback({
-                                ...raw,
-                                data: this.parse(raw) as never,
-                            });
-                        },
-                        [callback]
-                    )
+                    (raw) => {
+                        return callback({
+                            ...raw,
+                            data: this.parse(raw) as never,
+                        });
+                    }
                 );
             },
         };
@@ -71,25 +68,21 @@ function buildRealtimeChannel(
                     channelName: this.channelName(args),
                     ...params,
                 },
-                this.useCallback(callback, [callback])
-            );
-        },
-        useCallback(callback, deps) {
-            return useCallback((raw) => {
-                const event = channel.events[raw.name];
+                (raw) => {
+                    const event = channel.events[raw.name];
 
-                if (event == null) {
-                    console.error(`Unkown event: ${raw.name}`);
-                    return;
+                    if (event == null) {
+                        console.error(`Unkown event: ${raw.name}`);
+                        return;
+                    }
+
+                    return callback({
+                        ...raw,
+                        name: raw.name,
+                        data: event.parse(raw) as never,
+                    });
                 }
-
-                return callback({
-                    ...raw,
-                    name: raw.name,
-                    data: event.parse(raw) as never,
-                });
-                // eslint-disable-next-line react-hooks/exhaustive-deps
-            }, deps);
+            );
         },
         ...Object.fromEntries(events),
     };

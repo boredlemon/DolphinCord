@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useMemo } from "react";
 import Router from "next/router";
 import { getMessageVariables } from "@/utils/variables";
-import { removeNonce, setChannelUnread } from "./shared";
+import { setChannelUnread } from "./shared";
 import { useMessageStore } from "@/utils/stores/chat";
 import { MessageType } from "@/utils/types";
 
@@ -13,99 +13,73 @@ export function MessageEventManager() {
     const { status, data } = useSession();
     const utils = trpc.useContext();
 
-    const onEvent = channels.chat.useCallback(
-        ({ name, data: message }) => {
-            if (name === "typing") return;
+    const onEvent = ({ name, data: message }: { name: string; data: MessageType }) => {
+        if (name === "typing") return;
 
-            const variables = getMessageVariables(message.channel_id);
-            const channel_id =
-                Router.query.group != null
-                    ? utils.group.all
-                          .getData(undefined)
-                          ?.find(
-                              (group) => group.id === Number(Router.query.group)
-                          )?.channel_id
-                    : Router.query.channel;
-            const active = channel_id === message.channel_id;
+        const variables = getMessageVariables(message.channel_id);
+        const channel_id =
+            Router.query.group != null
+                ? utils.group.all
+                      .getData(undefined)
+                      ?.find((group) => group.id === Number(Router.query.group))
+                      ?.channel_id
+                : Router.query.channel;
+        const active = channel_id === message.channel_id;
 
-            if (name === "message_sent") {
-                const self = message.author_id === data?.user.id;
+        if (name === "message_sent") {
+            const self = message.author_id === data?.user.id;
 
-                if (active || self) {
-                    utils.chat.checkout.setData(
-                        { channelId: message.channel_id },
-                        { last_read: message.timestamp }
-                    );
-                } else {
-                    setChannelUnread(
-                        utils,
-                        message.channel_id,
-                        (prev) => prev + 1
-                    );
-                }
-
-                if (active && !self) {
-                    utils.client.chat.read.mutate({
-                        channelId: message.channel_id,
-                    });
-                }
-
-                if (message.nonce != null && removeNonce(message.nonce)) {
-                    useMessageStore
-                        .getState()
-                        .removeSending(message.channel_id, message.nonce);
-                }
-
-                return addMessage(utils, variables, message);
-            }
-
-            if (name === "message_updated") {
-                return utils.chat.messages.setInfiniteData(
-                    variables,
-                    (prev) => {
-                        if (prev == null) return prev;
-
-                        const pages = prev.pages.map((page) =>
-                            page.map((msg) => {
-                                if (msg.id === message.id) {
-                                    return {
-                                        ...msg,
-                                        ...message,
-                                    };
-                                }
-
-                                return msg;
-                            })
-                        );
-
-                        return {
-                            ...prev,
-                            pages,
-                        };
-                    }
+            if (active || self) {
+                utils.chat.checkout.setData(
+                    { channelId: message.channel_id },
+                    { last_read: message.timestamp }
                 );
+            } else {
+                setChannelUnread(utils, message.channel_id, (prev) => prev + 1);
             }
 
-            if (name === "message_deleted") {
-                return utils.chat.messages.setInfiniteData(
-                    variables,
-                    (prev) => {
-                        if (prev == null) return prev;
+            return addMessage(utils, variables, message);
+        }
 
-                        const pages = prev.pages.map((page) => {
-                            return page.filter((msg) => msg.id !== message.id);
-                        });
+        if (name === "message_updated") {
+            return utils.chat.messages.setInfiniteData(variables, (prev) => {
+                if (prev == null) return prev;
 
-                        return {
-                            ...prev,
-                            pages,
-                        };
-                    }
+                const pages = prev.pages.map((page) =>
+                    page.map((msg) => {
+                        if (msg.id === message.id) {
+                            return {
+                                ...msg,
+                                ...message,
+                            };
+                        }
+
+                        return msg;
+                    })
                 );
-            }
-        },
-        [data, utils]
-    );
+
+                return {
+                    ...prev,
+                    pages,
+                };
+            });
+        }
+
+        if (name === "message_deleted") {
+            return utils.chat.messages.setInfiniteData(variables, (prev) => {
+                if (prev == null) return prev;
+
+                const pages = prev.pages.map((page) => {
+                    return page.filter((msg) => msg.id !== message.id);
+                });
+
+                return {
+                    ...prev,
+                    pages,
+                };
+            });
+        }
+    };
 
     const groups = trpc.group.all.useQuery(undefined, {
         enabled: status === "authenticated",

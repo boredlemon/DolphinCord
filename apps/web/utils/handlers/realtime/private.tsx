@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { channels } from "@/utils/ably/client";
 import { assertConfiguration } from "@ably-labs/react-hooks";
 import { useSession } from "next-auth/react";
@@ -10,8 +11,8 @@ export function PrivateEventManager() {
     const { data, status } = useSession();
     const utils = trpc.useContext();
 
-    const onEvent = channels.private.useCallback(
-        ({ data: message, name }) => {
+    const onEvent = useCallback(
+        ({ data: message, name }: { data: any, name: string }) => {
             if (name === "group_created") {
                 return createGroup(utils, message);
             }
